@@ -2,7 +2,7 @@
 """
 
 __title__ = 'Flask-AutoFixture'
-__summary__ = 'Flask extension which records JSON fixtures right from your test suite'
+__summary__ = 'Flask extension for recording JSON fixtures right from your test suite'
 __url__ = 'https://github.com/janukobytsch/flask-autofixture'
 
 __version__ = '0.1.0'
