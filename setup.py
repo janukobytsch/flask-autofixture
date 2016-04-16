@@ -6,6 +6,7 @@
     Project: https://github.com/janukobytsch/flask-autofixture
     Documentation: https://github.com/janukobytsch/flask-autofixture
 """
+import os
 from setuptools import setup, find_packages
 
 
