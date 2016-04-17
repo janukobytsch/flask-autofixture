@@ -123,6 +123,14 @@ class AutoFixture(object):
 
         return current_app
 
+    @property
+    def cache(self):
+        return self.app.extensions[__ext_name__]
+
+    @cache.setter
+    def cache(self, value):
+        self.app.extensions[__ext_name__] = value
+
     def push_name(self, name):
         self._name_stack.append(name)
 
@@ -131,9 +139,6 @@ class AutoFixture(object):
 
     def clear_names(self):
         self._name_stack = []
-
-    def _cache_fixture(self, fixture):
-        self.app.extensions[__ext_name__].append(fixture)
 
     def _extract_fixtures(self, response):
         if not has_request_context:
@@ -147,13 +152,13 @@ class AutoFixture(object):
             # Create response fixture
             fixture = Fixture.from_response(self.app, response,
                                             name=fixture_name)
-            self._cache_fixture(fixture)
+            self.cache.append(fixture)
 
             # Create request fixture if required
             if request.data:
                 fixture = Fixture.from_request(self.app, request,
                                                name=fixture_name)
-                self._cache_fixture(fixture)
+                self.cache.append(fixture)
         except TypeError:  # pragma: no cover
             warnings.warn("Could not create fixture for unsupported mime type")
 
@@ -162,7 +167,8 @@ class AutoFixture(object):
     def _flush_fixtures(self, exception):
         if not has_app_context:
             return
-        for fixture in self.app.extensions[__ext_name__]:
+
+        for fixture in self.cache:
             self.storage.store_fixture(fixture)
-        # Clear cache
-        self.app.extensions[__ext_name__] = []
+
+        self.cache = []
