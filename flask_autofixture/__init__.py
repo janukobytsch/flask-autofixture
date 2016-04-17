@@ -1,8 +1,8 @@
 """
     flask.ext.autofixture
     ---------------
-    This extension provides automatic recording of JSON fixtures for Flask right
-    from your test suite.
+    This extension provides automatic recording of JSON fixtures for Flask
+    right from your test suite.
 
     :copyright: (c) 2016 by Janusch Jacoby.
     :license: MIT/X11, see LICENSE for more details.
