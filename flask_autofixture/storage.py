@@ -67,6 +67,11 @@ class RouteLayout(StorageLayout):
 # ==== Storage ====
 
 
+# A global map that keeps track of the persisted fixures and their versions
+# This must be module-scoped to stay alive for the course of the test run
+_dir_map = {}
+
+
 class Storage(object):
     pass
 
@@ -83,20 +88,20 @@ class FileStorage(Storage):
         self.layout = layout_class
         self.dirname = dirname
         self.root_path = root_path
-        # Internal versioning of duplicate files
-        self._file_map = {}
 
     def store_fixture(self, fixture):
+        global _dir_map
+
         path_components = self.layout.path_components_for(fixture)
 
         # Handle multiple versions
         version = 0
         index = self._file_index(path_components)
-        if index in self._file_map:
-            version = self._file_map[index] + 1
+        if index in _dir_map:
+            version = _dir_map[index] + 1
         if version:
             path_components[-1] += '_{}'.format(version)
-        self._file_map[index] = version
+        _dir_map[index] = version
 
         # Append file type to last component
         path_components[-1] += '.{}'.format(fixture.type)
