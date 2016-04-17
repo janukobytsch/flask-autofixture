@@ -52,7 +52,7 @@ Roadmap
 
 
 .. |version| image:: http://img.shields.io/pypi/v/flask-autofixture.svg?style=flat
-    :target: https://pypi.python.org/pypi/flask-logconfig/
+    :target: https://pypi.python.org/pypi/Flask-AutoFixture/
 
 .. |license| image:: http://img.shields.io/pypi/l/flask-autofixture.svg?style=flat
-    :target: https://pypi.python.org/pypi/flask-logconfig/
+    :target: https://pypi.python.org/pypi/Flask-AutoFixture/
