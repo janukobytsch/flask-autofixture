@@ -38,7 +38,7 @@ To get started, simply wrap your ``Flask`` application under test in the setup m
         def tearDown(self):
             self.app_context.pop()
 
-Alternatively, you can use ``init_app`` to initialize Flask after ``AutoFixture` has been constructed.
+Alternatively, you can use ``init_app`` to initialize Flask after ``AutoFixture`` has been constructed.
 
 Run your test suite and fixtures for every request with the ``test_client`` will magically appear in your instance folder afterwards.
 
