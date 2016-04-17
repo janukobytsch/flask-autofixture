@@ -31,7 +31,7 @@ class RequestMethodLayout(StorageLayout):
                         response.json       (the response data)
                         request_2.json
                         response_2.json
-        """
+    """
 
     @staticmethod
     def path_components_for(fixture):
