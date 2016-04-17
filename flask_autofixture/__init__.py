@@ -80,15 +80,18 @@ class AutoFixture(object):
 
     :param app: :class:`Flask` application under test
     :param fixture_directory: the name of the fixture directory to be generated
+    :param fixture_dirpath: the path of the fixture directory's parent folder
     :param storage_class: the :class:`Storage` to which the cache is flushed
     :param storage_layout: the :class:`StorageLayout` for the fixture directory
     """
 
     def __init__(self, app=None,
-                 fixture_directory=__ext_name__,
+                 fixture_dirname=__ext_name__,
+                 fixture_dirpath=None,
                  storage_class=FileStorage,
                  storage_layout=RequestMethodLayout):
-        self.fixture_directory = fixture_directory
+        self.fixture_dirname = fixture_dirname
+        self.fixture_dirpath = fixture_dirpath
         self.storage_layout = storage_layout
         self.storage_class = storage_class
         self._app = app
@@ -102,8 +105,8 @@ class AutoFixture(object):
 
         # Setup persistent storage
         self.storage = self.storage_class(self.storage_layout,
-                                          self.fixture_directory,
-                                          self.app.instance_path)
+                                          self.fixture_dirname,
+                                          self.fixture_path)
 
         # Setup fixture cache
         if not hasattr(app, 'extensions'):  # pragma: no cover
@@ -122,6 +125,16 @@ class AutoFixture(object):
             return self._app
 
         return current_app
+
+    @property
+    def fixture_path(self):
+        """The path of the parent folder containing the fixture directory.
+        By default, the fixture directory is generated in the instance folder.
+        :return:
+        """
+        if self.fixture_dirpath:
+            return self.fixture_dirpath
+        return self.app.instance_path
 
     @property
     def cache(self):

@@ -89,6 +89,10 @@ class FileStorage(Storage):
         self.dirname = dirname
         self.root_path = root_path
 
+    @property
+    def fixture_directory(self):
+        return os.path.join(self.root_path, self.dirname)
+
     def store_fixture(self, fixture):
         global _dir_map
 
@@ -107,7 +111,7 @@ class FileStorage(Storage):
         path_components[-1] += '.{}'.format(fixture.type)
 
         # Flush data
-        fn = os.path.join(self.root_path, self.dirname, *path_components)
+        fn = os.path.join(self.fixture_directory, *path_components)
         os.makedirs(os.path.dirname(fn), exist_ok=True)
         with open(fn, 'w') as fd:
             fd.write(fixture.payload)

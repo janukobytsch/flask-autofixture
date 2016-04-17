@@ -1,3 +1,7 @@
+# Generated fixture directory
+instance/
+tests/autofixture
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
