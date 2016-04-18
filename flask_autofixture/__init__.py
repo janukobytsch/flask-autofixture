@@ -8,7 +8,7 @@
     :license: MIT/X11, see LICENSE for more details.
 """
 import warnings
-from flask import request, current_app, has_request_context, has_app_context
+from flask import request, current_app, has_request_context, has_app_context, g
 from functools import wraps
 from .fixture import Fixture
 from .storage import FileStorage, RouteLayout, RequestMethodLayout
@@ -116,7 +116,7 @@ class AutoFixture(object):
 
         if app.config['RECORD_REQUESTS_ENABLED']:
             # Register hooks
-            app.after_request(self._extract_fixtures)
+            app.after_request(self._per_request_callback)
             app.teardown_appcontext(self._flush_fixtures)
 
     @property
@@ -152,6 +152,21 @@ class AutoFixture(object):
 
     def clear_names(self):
         self._name_stack = []
+
+    def _per_request_callback(self, response):
+        """The after_request function of :class:`Flask` is triggered for all
+        requests. We want to hook into one specific request.
+
+        For further info:
+        http://flask.pocoo.org/snippets/53/
+
+        :param response: the :class:`Response` to generate fixtures for
+        :return:
+        """
+        if not hasattr(g, 'call_after_request'):
+            g.call_after_request = self._extract_fixtures
+            response = g.call_after_request(response)
+        return response
 
     def _extract_fixtures(self, response):
         if not has_request_context:
