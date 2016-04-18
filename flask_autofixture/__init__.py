@@ -107,6 +107,7 @@ class AutoFixture(object):
         self.storage = self.storage_class(self.storage_layout,
                                           self.fixture_dirname,
                                           self.fixture_path)
+        self.storage.reset_directory()
 
         # Setup fixture cache
         if not hasattr(app, 'extensions'):  # pragma: no cover

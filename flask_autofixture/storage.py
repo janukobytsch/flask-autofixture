@@ -1,4 +1,5 @@
 import os
+import shutil
 
 
 # ==== Layout ====
@@ -92,6 +93,10 @@ class FileStorage(Storage):
     @property
     def fixture_directory(self):
         return os.path.join(self.root_path, self.dirname)
+
+    def reset_directory(self):
+        if os.path.exists(self.fixture_directory):
+            shutil.rmtree(self.fixture_directory)
 
     def store_fixture(self, fixture):
         global _dir_map

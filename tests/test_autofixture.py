@@ -1,5 +1,6 @@
 from flask import jsonify, Response
-from flask_autofixture import AutoFixture, autofixture
+from flask_autofixture import AutoFixture, autofixture, FileStorage, \
+    __ext_name__, RequestMethodLayout
 from unittest import mock
 import os
 
@@ -93,10 +94,13 @@ def test_name_decorator(testapp):
     assert name in fixture.name
 
 
+def cwd():
+    return os.path.dirname(os.path.realpath(__file__))
+
+
 def test_flush_entries_from_cache(testapp, fixture):
     # Given
-    cwd = os.path.dirname(os.path.realpath(__file__))
-    auto_fixture = AutoFixture(fixture_dirpath=cwd)
+    auto_fixture = AutoFixture(fixture_dirpath=cwd())
     auto_fixture.init_app(testapp)
     auto_fixture.cache = [fixture, fixture]
 
@@ -114,3 +118,17 @@ def test_flush_entries_from_cache(testapp, fixture):
 
     # Then
     assert file_count == 2
+
+
+def test_reset_fixture_directory(testapp):
+    # Given
+    auto_fixture = AutoFixture()
+
+    with mock.patch('flask_autofixture.storage.shutil') as mock_shutil:
+        assert not mock_shutil.rmtree.called
+
+        # When
+        auto_fixture.init_app(testapp)
+
+        # Then
+        assert mock_shutil.rmtree.called
