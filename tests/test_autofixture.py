@@ -1,6 +1,9 @@
 from flask import jsonify, Response
 from unittest import mock
+from flask_autofixture import AutoFixture
+from .conftest import record_decorator_config
 import os
+import pytest
 
 
 # ==== Callbacks ====
@@ -11,7 +14,7 @@ def test_execute_commands_after_request(auto_fixture, testapp):
                            autospec=True) as mock_method:
         auto_fixture.init_app(testapp)
 
-        with testapp.test_request_context('/resource'):
+        with testapp.test_request_context('/foobar'):
             assert not mock_method.called
 
             # When
@@ -43,13 +46,28 @@ def test_flush_fixtures_on_app_ctx_teardown(auto_fixture, app):
 # ==== Recording ====
 
 # todo parametrize on decorator
-def test_decorator_push_cmd_on_stack(auto_fixture, testapp):
+@pytest.mark.parametrize("decorator_name, decorator_kwargs", [
+    (AutoFixture.record.__name__, {
+        'request_name': 'foo',
+        'response_name': 'bar'}),
+    # TODO make this work
+    # (AutoFixture.record.__name__, None)  # should fall back to default names
+])
+def test_decorator_push_cmd_on_stack(auto_fixture, testapp, decorator_name,
+                                     decorator_kwargs):
     # Given
     auto_fixture.explicit_recording = True
 
-    @auto_fixture.name(request_name='foo', response_name='bar')
+    decorator = getattr(auto_fixture, decorator_name)
+    if decorator_kwargs:
+        print(decorator)
+        decorator = decorator(auto_fixture, decorator_kwargs)
+
     def dummy_test_method():
         assert True
+
+    # Apply parametrized decorator
+    dummy_test_method = decorator(dummy_test_method)
 
     with mock.patch.object(auto_fixture, '_push_cmd',
                            autospec=True) as mock_method:
@@ -62,7 +80,7 @@ def test_decorator_push_cmd_on_stack(auto_fixture, testapp):
         assert mock_method.called
 
 
-def test_record_implicit(auto_fixture, routeapp):
+def test_record_if_implicit(auto_fixture, routeapp):
     # Given
     auto_fixture.init_app(routeapp)
 
@@ -78,14 +96,14 @@ def test_record_implicit(auto_fixture, routeapp):
     assert len(auto_fixture.cache) == 2
 
 
-def test_record_explicit_with_decorator(auto_fixture, routeapp):
+def test_record_if_explicit_and_request_decorator(auto_fixture, routeapp):
     # Given
     auto_fixture.explicit_recording = True
     auto_fixture.init_app(routeapp)
     request_name1, request_name2 = 'foo', 'foo2'
 
-    @auto_fixture.name(request_name=request_name2, response_name='bar')
-    @auto_fixture.name(request_name=request_name1, response_name='bar')
+    @auto_fixture.record(request_name=request_name2, response_name='bar')
+    @auto_fixture.record(request_name=request_name1, response_name='bar')
     def dummy_test_method():
         with routeapp.test_client() as client:
             _ = client.get(routeapp.routes[0])
@@ -100,6 +118,27 @@ def test_record_explicit_with_decorator(auto_fixture, routeapp):
     assert len(auto_fixture.cache) == 2
     assert auto_fixture.cache[0].name == request_name1
     assert auto_fixture.cache[1].name == request_name2
+
+
+@pytest.mark.parametrize("explicit_recording", [True, False])
+def test_record_all__test_decorator(auto_fixture, routeapp,
+                                    explicit_recording):
+    # Given
+    auto_fixture.explicit_recording = True
+    auto_fixture.init_app(routeapp)
+
+    @auto_fixture.record_all
+    def dummy_test_method():
+        with routeapp.test_client() as client:
+            _ = client.get(routeapp.routes[0])
+            _ = client.get(routeapp.routes[1])
+            _ = client.get(routeapp.routes[2])
+
+    # When
+    dummy_test_method()
+
+    # Then
+    assert len(auto_fixture.cache) == 3
 
 
 def test_dont_record_if_explicit_and_missing_decorator(auto_fixture, routeapp):
@@ -118,12 +157,17 @@ def test_dont_record_if_explicit_and_missing_decorator(auto_fixture, routeapp):
     assert len(auto_fixture.cache) == 0
 
 
-# TODO parametrize on on invalid decorator config
-def test_implicit_recording_with_decorator_only_once(auto_fixture, routeapp):
+@pytest.mark.parametrize("request_name, response_name",
+                         [cfg for cfg in record_decorator_config()])
+def test_record_only_once_if_implicit_and_decorator(auto_fixture,
+                                                    routeapp,
+                                                    request_name,
+                                                    response_name):
     # Given
     auto_fixture.init_app(routeapp)
 
-    @auto_fixture.name(request_name='foo', response_name='bar')
+    @auto_fixture.record(request_name=request_name,
+                         response_name=response_name)
     def dummy_test_method():
         with routeapp.test_client() as client:
             response = client.post(routeapp.routes[3],
@@ -137,9 +181,16 @@ def test_implicit_recording_with_decorator_only_once(auto_fixture, routeapp):
     assert len(auto_fixture.cache) == 2
 
 
-def test_post_request_records_two_fixtures(auto_fixture, routeapp):
+@pytest.mark.parametrize("request_name, response_name",
+                         [cfg for cfg in record_decorator_config()])
+def test_post_request_records_two_fixtures(auto_fixture, routeapp,
+                                           request_name,
+                                           response_name):
     auto_fixture.explicit_recording = True
-    test_implicit_recording_with_decorator_only_once(auto_fixture, routeapp)
+    test_record_only_once_if_implicit_and_decorator(auto_fixture,
+                                                    routeapp,
+                                                    request_name,
+                                                    response_name)
 
 
 # ==== Storage ====

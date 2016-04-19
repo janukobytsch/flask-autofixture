@@ -15,11 +15,12 @@ from .storage import FileStorage, RouteLayout, RequestMethodLayout
 from .command import CreateFixtureCommand
 
 __all__ = ('AutoFixture', 'FileStorage', 'RouteLayout', 'RequestMethodLayout')
+
 __ext_name__ = 'autofixture'
 
 
 class AutoFixture(object):
-    # TODO fix description
+    # TODO update docstring
 
     """
     A wrapper around the application for which to automatically generate
@@ -202,8 +203,7 @@ class AutoFixture(object):
         :param response: the recorded :class:`Response`
         :return: the recorded :class:`Response`
         """
-        from flask import request
-        print("exec", request, len(self._request_cmd_stack))
+
         # Collect applicable commands
         commands = []
         if len(self._request_cmd_stack):
@@ -215,28 +215,20 @@ class AutoFixture(object):
         if not self.explicit_recording:
             # Lazily add the command to generate fixtures
             if not any(isinstance(x, CreateFixtureCommand) for x in commands):
-                print("lazy add cmd")
-                cmd = CreateFixtureCommand(request_name='request',
-                                           response_name='response')
+                cmd = CreateFixtureCommand.create_default_cmd()
                 self._push_cmd(cmd)
                 commands.append(cmd)
 
-        print("exec before", len(self._request_cmd_stack))
-
         for command in commands:
             command.execute(response, self)
-
-        print("exec after", request, len(self._request_cmd_stack))
-
-
 
         return response
 
     # ==== Decorators ====
 
-    def name(self, request_name=None, response_name=None):
+    def record(self, request_name=None, response_name=None):
         """A parametrized per-request decorator for usage in test methods to
-        specify a descriptive name for the generated fixture.
+        generate a fixture with a descriptive name.
 
         Example usage:
 
@@ -259,12 +251,22 @@ class AutoFixture(object):
         """
         if not request_name or not response_name:
             warnings.warn(
-                "Please specify a name for the fixture to generate")
-            return
-
-        cmd = CreateFixtureCommand(request_name, response_name)
+                "Please specify a name for the fixture to generate. Falling "
+                "back to default names.")
+            cmd = CreateFixtureCommand.create_default_cmd()
+        else:
+            cmd = CreateFixtureCommand(request_name, response_name)
 
         return self._create_command_decorator(cmd)
+
+    def record_all(self, func):
+        # Setup create command with test scope
+        cmd = CreateFixtureCommand.create_default_cmd()
+        cmd.request_scope = False
+
+        decorator = self._create_command_decorator(cmd)
+
+        return decorator(func)
 
     def _create_command_decorator(self, cmd):
         """Factory method to create a test method decorator which manages the
@@ -272,10 +274,10 @@ class AutoFixture(object):
         appropriate hooks.
 
         :param cmd: the :class:`Command` to manage
-        :return: the decorated test method
+        :return: the decorator
         """
 
-        def decorated(func):
+        def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
                 # TODO refactor to context manager
@@ -298,29 +300,9 @@ class AutoFixture(object):
 
             return wrapper
 
-        return decorated
+        return decorator
 
     # ==== Callbacks ====
-
-    # def _per_request_callback(self, response):
-    #     """The custom after_request callback of :class:`Flask` to be triggered
-    #     for every requests. The default behaviour of the after-request hook is
-    #     to be invoked for all requests. However, we want to execute
-    #     request-specific commands only once.
-    #
-    #     For further reference:
-    #     http://flask.pocoo.org/snippets/53/
-    #
-    #     :param response: the recorded :class:`Response`
-    #     :return: the recorded :class:`Response`
-    #     """
-    #     print("per request")
-    #     if not hasattr(g, 'call_after_request'):
-    #         g.call_after_request = self._execute_commands
-    #         response = g.call_after_request(response)
-    #         print("our resp", response)
-    #
-    #     return response
 
     def _teardown_callback(self, exception):
         """The custom callback to be called when tearing down the application

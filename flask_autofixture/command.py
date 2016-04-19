@@ -1,6 +1,6 @@
 import warnings
 from flask import request, has_request_context
-from .fixture import Fixture
+from .fixture import Fixture, __default_names__
 
 
 class Command(object):
@@ -73,7 +73,6 @@ class CreateFixtureCommand(Command):
             autofixture.add_fixture(fixture)
 
             # Create request fixture
-            print("active request", request.data)
             if request.data:
                 fixture = Fixture.from_request(request, app, self.request_name)
                 autofixture.add_fixture(fixture)
@@ -82,7 +81,18 @@ class CreateFixtureCommand(Command):
 
         return response
 
+    @classmethod
+    def create_default_cmd(cls):
+        """Factory method to create the default command to generate fixtures.
+        :return: the :class:`CreateFixtureCommand`
+        """
+        cmd = cls(
+            request_name=__default_names__[0],
+            response_name=__default_names__[1]
+        )
+        return cmd
+
 
 class IgnoreFixtureCommand(object):
-    # TODO no-op
+    # TODO
     pass

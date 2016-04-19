@@ -2,6 +2,7 @@ from flask import request
 import re
 
 __mime_types__ = ['application/json', 'application/.*\+json']
+__default_names__ = ('request', 'response')
 
 
 class Fixture(object):

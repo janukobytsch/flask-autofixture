@@ -69,3 +69,10 @@ def auto_fixture():
 def fixture():
     return Fixture('{"body":"lorem ipsum"}'.encode("utf8"), 'fixture-name',
                    __name__, "/resource", "GET")
+
+
+def record_decorator_config():
+    yield ('foo', 'bar')
+    yield ('foo', None)
+    yield (None, 'bar')
+    yield (None, None)
