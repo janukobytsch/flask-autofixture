@@ -1,4 +1,4 @@
-from flask import jsonify, Response
+from flask import Response
 from unittest import mock
 from flask_autofixture import AutoFixture
 from .conftest import record_decorator_config
@@ -87,8 +87,8 @@ def test_record_if_implicit(auto_fixture, routeapp):
 
     def dummy_test_method():
         with routeapp.test_client() as client:
-            _ = client.get(routeapp.routes[0])
-            _ = client.get(routeapp.routes[1])
+            client.get(routeapp.routes[0])
+            client.get(routeapp.routes[1])
 
     # When
     dummy_test_method()
@@ -107,10 +107,10 @@ def test_record_if_explicit_and_request_decorator(auto_fixture, routeapp):
     @auto_fixture.record(request_name=request_name1, response_name='bar')
     def dummy_test_method():
         with routeapp.test_client() as client:
-            _ = client.get(routeapp.routes[0])
-            _ = client.get(routeapp.routes[1])
+            client.get(routeapp.routes[0])
+            client.get(routeapp.routes[1])
             # Last request shouldn't be recorded due to missing decorator
-            _ = client.get(routeapp.routes[2])
+            client.get(routeapp.routes[2])
 
     # When
     dummy_test_method()
@@ -131,9 +131,9 @@ def test_record_all__test_decorator(auto_fixture, routeapp,
     @auto_fixture.record_all
     def dummy_test_method():
         with routeapp.test_client() as client:
-            _ = client.get(routeapp.routes[0])
-            _ = client.get(routeapp.routes[1])
-            _ = client.get(routeapp.routes[2])
+            client.get(routeapp.routes[0])
+            client.get(routeapp.routes[1])
+            client.get(routeapp.routes[2])
 
     # When
     dummy_test_method()
@@ -149,7 +149,7 @@ def test_dont_record_if_explicit_and_missing_decorator(auto_fixture, routeapp):
 
     def dummy_test_method():
         with routeapp.test_client() as client:
-            response = client.get(routeapp.routes[0])
+            client.get(routeapp.routes[0])
 
     # When
     dummy_test_method()
@@ -171,9 +171,9 @@ def test_record_only_once_if_implicit_and_decorator(auto_fixture,
                          response_name=response_name)
     def dummy_test_method():
         with routeapp.test_client() as client:
-            response = client.post(routeapp.routes[3],
-                                   data='{"hello":"world"}',
-                                   content_type='application/json')
+            client.post(routeapp.routes[3],
+                        data='{"hello":"world"}',
+                        content_type='application/json')
 
     # When
     dummy_test_method()
