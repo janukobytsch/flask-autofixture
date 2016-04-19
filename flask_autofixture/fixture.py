@@ -62,7 +62,3 @@ class Fixture(object):
             if re.match(supported_mime_type, mime_type):
                 return True
         return False
-
-    def __str__(self):
-        return '<{} {}: {}>'.format(self.request_method, self.request_path,
-                                    self.data)

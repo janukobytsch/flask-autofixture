@@ -4,6 +4,13 @@ from .fixture import Fixture, __default_names__
 
 
 class Command(object):
+    """
+    An abstract command to be executed by :class:`AutoFixture`.
+
+    :param request_scope: whether the command should be executed for a
+                          single request or all requests in the test
+    """
+
     def __init__(self, request_scope=True):
         self.request_scope = request_scope
 
@@ -33,7 +40,7 @@ class Command(object):
         :param auto_fixture: the active :class:`AutoFixture`
         :return: the recorded :class:`Response
         """
-        return response
+        raise NotImplementedError()
 
     @property
     def has_request_scope(self):
@@ -47,11 +54,24 @@ class Command(object):
 
 
 class CreateFixtureCommand(Command):
+    """
+    A command which generates fixtures from a response object.
+
+    :param request_name: the name of the :class:`Fixture` generated
+                         from the :class:`Request`
+    :param response_name: the name of the :class:`Fixture` generated
+                          from the :class:`Response`
+    :param request_scope: whether the command should be executed for a
+                          single request or all requests in the test
+    """
+
     def __init__(self,
                  request_name=None,
                  response_name=None,
                  request_scope=True):
+
         super().__init__(request_scope=request_scope)
+
         self.request_name = request_name
         self.response_name = response_name
 
@@ -94,5 +114,4 @@ class CreateFixtureCommand(Command):
 
 
 class IgnoreFixtureCommand(object):
-    # TODO
     pass

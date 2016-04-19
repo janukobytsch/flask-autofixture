@@ -8,6 +8,7 @@ import pytest
 
 # ==== Callbacks ====
 
+
 def test_execute_commands_after_request(auto_fixture, testapp):
     # Given
     with mock.patch.object(auto_fixture, '_execute_commands',
@@ -45,13 +46,14 @@ def test_flush_fixtures_on_app_ctx_teardown(auto_fixture, app):
 
 # ==== Recording ====
 
-# todo parametrize on decorator
+
 @pytest.mark.parametrize("decorator_name, decorator_kwargs", [
     (AutoFixture.record.__name__, {
         'request_name': 'foo',
         'response_name': 'bar'}),
-    # TODO make this work
-    # (AutoFixture.record.__name__, None)  # should fall back to default names
+    (AutoFixture.record.__name__, {
+        'request_name': None,
+        'response_name': None})  # should fall back to default names
 ])
 def test_decorator_push_cmd_on_stack(auto_fixture, testapp, decorator_name,
                                      decorator_kwargs):
@@ -194,6 +196,7 @@ def test_post_request_records_two_fixtures(auto_fixture, routeapp,
 
 # ==== Storage ====
 
+
 def test_flush_entries_from_cache(auto_fixture, testapp, fixture):
     # Given
     auto_fixture.init_app(testapp)
@@ -223,6 +226,8 @@ def test_reset_fixture_directory(auto_fixture, testapp):
 
         # When
         auto_fixture.init_app(testapp)
+        auto_fixture.init_app(testapp)
 
         # Then
         assert mock_shutil.rmtree.called
+        assert mock_shutil.rmtree.call_count == 1

@@ -8,20 +8,18 @@
     :license: MIT/X11, see LICENSE for more details.
 """
 import warnings
-from flask import request, current_app, has_app_context, g
+from flask import current_app, has_app_context
 from functools import wraps
+from contextlib import contextmanager
 from .fixture import Fixture
 from .storage import FileStorage, RouteLayout, RequestMethodLayout
 from .command import CreateFixtureCommand
 
 __all__ = ('AutoFixture', 'FileStorage', 'RouteLayout', 'RequestMethodLayout')
-
 __ext_name__ = 'autofixture'
 
 
 class AutoFixture(object):
-    # TODO update docstring
-
     """
     A wrapper around the application for which to automatically generate
     fixtures by recording the incoming requests and outgoing responses.
@@ -33,8 +31,8 @@ class AutoFixture(object):
     To get started, you wrap your :class:`Flask` application under test
     in the setup method of your testing framework like this::
 
-        self.app = create_app('testing')
-        self.autofixture = AutoFixture(self.app)
+        app = create_app('testing')
+        autofixture = AutoFixture(self.app)
 
     Alternatively, you can use :meth:`init_app` to set the Flask application
     after it has been constructed.
@@ -71,25 +69,33 @@ class AutoFixture(object):
         # beginning of the test and popped at the end of the test.
         self._test_cmd_stack = []
 
+        # Internal flag whether the fixture directory has been reset
+        # Required to avoid deletion of directory due to init_app in setUp
+        self._has_reset_dir = False
+
         if app is not None:  # pragma: no cover
             self.init_app(app)
 
     def init_app(self, app):
         app.config.setdefault('RECORD_REQUESTS_ENABLED', True)
 
-        # Setup persistent storage
+        # The storage responsible for persisting the cached fixtures
         self.storage = self.storage_class(self.storage_layout,
                                           self.fixture_dirname,
                                           self.fixture_path)
-        self.storage.reset_directory()
 
-        # Setup fixture cache
-        if not hasattr(app, 'extensions'):
+        # Setup app-specific cache
+        if not hasattr(app, 'extensions'):  # pragma: no cover
             app.extensions = {}
         if __ext_name__ not in app.extensions:
             app.extensions[__ext_name__] = []
 
         if app.config['RECORD_REQUESTS_ENABLED']:
+            # Reset the directory only once
+            if not self._has_reset_dir:
+                self.storage.reset_directory()
+                self._has_reset_dir = True
+
             # Register hooks
             app.after_request(self._execute_commands)
             app.teardown_appcontext(self._teardown_callback)
@@ -295,25 +301,31 @@ class AutoFixture(object):
         :return: the decorator
         """
 
+        @contextmanager
+        def command_context(cmd, *args, **kwargs):
+            """A context manager to wrap test methods.
+
+            :param cmd: the :class:`Command` to be registered
+            :param args: the test methods args
+            :param kwargs: the test method kwargs
+            """
+            self._push_cmd(cmd)
+            # Invoke hooks and execute test method
+            for command in self._request_cmd_stack:
+                command.before_test(*args, **kwargs)
+            yield  # to the test method
+            for command in self._request_cmd_stack:
+                command.after_test(*args, **kwargs)
+            # Clear all commands regardless of scope
+            # This will clear any remaining request-scoped commands hence
+            self._clear_cmds()
+
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                # TODO refactor to context manager
-                self._push_cmd(cmd)
-
-                # Invoke hooks and execute test method
-                for command in self._request_cmd_stack:
-                    command.before_test(*args, **kwargs)
-
-                result = func(*args, **kwargs)
-
-                for command in self._request_cmd_stack:
-                    command.after_test(*args, **kwargs)
-
-                # Clear all commands regardless of scope
-                # This will clear any remaining request-scoped commands hence
-                self._clear_cmds()
-
+                # Execute test method with command context
+                with command_context(cmd, *args, **kwargs):
+                    result = func(*args, **kwargs)
                 return result
 
             return wrapper
