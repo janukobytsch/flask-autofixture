@@ -64,11 +64,11 @@ class AutoFixture(object):
         self._app = app
 
         # Stack for request-specific commands. These are pushed at the
-        # beginning of the test and popped when executing the request hooks
+        # beginning of the test and popped when executing the request hooks.
         self._request_cmd_stack = []
 
         # Stack for test-specific commands. These are pushed at the
-        # beginning of the test and popped at the end of the test
+        # beginning of the test and popped at the end of the test.
         self._test_cmd_stack = []
 
         if app is not None:  # pragma: no cover
@@ -84,7 +84,7 @@ class AutoFixture(object):
         self.storage.reset_directory()
 
         # Setup fixture cache
-        if not hasattr(app, 'extensions'):  # pragma: no cover
+        if not hasattr(app, 'extensions'):
             app.extensions = {}
         if __ext_name__ not in app.extensions:
             app.extensions[__ext_name__] = []
@@ -228,12 +228,13 @@ class AutoFixture(object):
 
     def record(self, request_name=None, response_name=None):
         """A parametrized per-request decorator for usage in test methods to
-        generate a fixture with a descriptive name.
+        generate a fixture with a descriptive name. Falls back to the
+        default names if not specified otherwise.
 
         Example usage:
 
-            @autofixture.name(request_name="missing_email",
-                              response_name="missing_email_response")
+            @autofixture.record(request_name="missing_email",
+                                response_name="missing_email_response")
             def test_missing_email_returns_bad_request(self):
                 response = self.client.post(
                     url_for('api.new_user'),
@@ -260,7 +261,24 @@ class AutoFixture(object):
         return self._create_command_decorator(cmd)
 
     def record_all(self, func):
-        # Setup create command with test scope
+        """A per-test decorator to automatically generate fixtures for all
+        requests executed the the decorated test method.
+
+        Example usage:
+
+            @autofixture.record_all
+            def test_missing_email_returns_bad_request(self):
+                response1 = client.get('/route1')
+                response2 = client.get('/route2')
+
+        This should not be used together with the :meth:`record` decorator if
+        requests should not be recorded twice.
+
+        :param func: the test method to be decorated
+        :return: the decorated test method
+        """
+
+        # Setup command with test scope
         cmd = CreateFixtureCommand.create_default_cmd()
         cmd.request_scope = False
 
