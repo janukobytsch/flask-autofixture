@@ -27,10 +27,13 @@ To get started, simply wrap your ``Flask`` application under test in the setup m
     from app import create_app
     from flask.ext.autofixture import AutoFixture
 
+    autofixture = AutoFixture()
+
     class APITestCase(unittest.TestCase):
         def setUp(self):
             self.app = create_app('testing')
-            self.autofixture = AutoFixture(self.app)
+            # Register the app for recording
+            autofixture.init_app(self.app)
             self.app_context = self.app.app_context()
             self.app_context.push()
             self.client = self.app.test_client()
@@ -38,13 +41,50 @@ To get started, simply wrap your ``Flask`` application under test in the setup m
         def tearDown(self):
             self.app_context.pop()
 
-Alternatively, you can use ``init_app`` to initialize Flask after ``AutoFixture`` has been constructed.
+Instead of passing the Flask instance directly to the ``AutoFixture`` constructor, you can use ``init_app`` to initialize Flask afterwards. If you are using a factory to create your Flask instance or want to configure the recording of your fixtures (see below), this is the recommended approach.
 
-Run your test suite and fixtures for every request executed by the ``test_client`` will magically appear in your instance folder afterwards.
+Then simply run your test suite. Fixtures for every request executed by the ``test_client`` will magically appear in your instance folder.
 
 
 Configuration
 =============
+
+Recording
+---------
+
+Flask-AutoFixture provides parametrized decorators to configure fixture generation on individual test methods.
+
+To provide a descriptive name for the generated fixture, simply annotate the test method with the ``record`` decorator like so:
+
+.. code-block:: python
+
+    from app import create_app
+    from flask.ext.autofixture import AutoFixture
+
+    app = create_app('testing')
+    autofixture = AutoFixture(app)
+
+    @autofixture.record(request_name="missing_email_request",
+                        response_name="missing_email_resonse")
+    def test_missing_email_returns_bad_request(self):
+        response = self.client.post(
+            url_for('api.new_user'),
+            data=json.dumps({'name': 'john'}))
+        self.assertTrue(response.status_code == 400)
+
+
+By default, ``AutoFixture`` will record all requests and responses automatically. If you want to record requests only in a specific set of test methods, you can disable this behaviour in the ``AutoFixture`` constructor by means of the ``explicit_recording`` argument:
+
+.. code-block:: python
+
+    from app import create_app
+    from flask.ext.autofixture import AutoFixture
+
+    app = create_app('testing')
+    autofixture = AutoFixture(app, explicit_recording=True)
+
+
+If ``explicit_recording`` is enabled, you must declare individual requests to be recorded using the ``record`` decorator. Alternatively, if a test methods performs multiple requests, you can apply the ``record_all`` decorator to avoid nested ``record`` decorators.
 
 Fixture directory
 -----------------
@@ -58,7 +98,7 @@ By default, the generated fixtures will be stored in your app's instance folder 
     autofixture = AutoFixture(app,
                               fixture_dirname="mydir",
                               fixture_dirpath="/path/to/project",
-                              layout=RouteLayout)
+                              storage_layout=RouteLayout)
 
 
 The generated directory is laid out according to the ``StorageLayout`` specified in the ``AutoFixture`` constructor. The default layout is ``RequestMethodLayout``:
@@ -85,30 +125,13 @@ The generated directory is laid out according to the ``StorageLayout`` specified
 
 (1) http://flask.pocoo.org/docs/0.10/config/#instance-folders
 
-Test decorators
----------------
-
-Flask-AutoFixture provides parametrized decorators to configure fixture generation on individual test methods.
-
-To provide a descriptive name for the generated fixture, simply annotate the test method with ``autofixture`` like so:
-
-.. code-block:: python
-
-    from flask.ext.autofixture import autofixture
-
-    @autofixture("missing_email")
-    def test_missing_email_returns_bad_request(self):
-        response = self.client.post(
-            url_for('api.new_user'),
-            data=json.dumps({'name': 'john'}))
-        self.assertTrue(response.status_code == 400)
 
 Roadmap
 =======
 
 - Support further mime types
 - Support request context manager (trigger preprocess_request)
-- Additional decorators for configuring individual test methods
+- Get listed in the Flask extension registry
 
 
 .. |version| image:: http://img.shields.io/pypi/v/flask-autofixture.svg?style=flat
