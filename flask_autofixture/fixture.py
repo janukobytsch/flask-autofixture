@@ -13,34 +13,23 @@ class Fixture(object):
     - polymorph on mime type
 
     :param data: the fixture payload
+    :param name: the name of the fixture (e.g. used as a filename)
     :param app_name: the name of the :class:`Flask` application
     :param request_path: the route from which the payload originated
     :param request_method:  the request method from which the payload
                             originated
     :param is_response: whether the fixture wraps a :class:`Response`
                         or :class:`Request
-    :param name: the name of the fixture e.g. to be used as a filename
     """
 
-    def __init__(self, data, app_name, request_path,
-                 request_method, is_response=True,
-                 name=None):
+    def __init__(self, data, name, app_name, request_path,
+                 request_method, is_response=True):
         self.data = data
-        # Metadata for fixture directory
+        self.name = name
         self.app_name = app_name
         self.request_path = request_path
         self.request_method = request_method
         self.is_response = is_response
-        self._name = name
-
-    @property
-    def name(self):
-        name = self._name + '_' if self._name else ''
-        if self.is_response:
-            name += 'response'
-        else:
-            name += 'request'
-        return name
 
     @property
     def payload(self):
@@ -51,19 +40,19 @@ class Fixture(object):
         return 'json'
 
     @classmethod
-    def from_request(cls, app, request, name=None):
+    def from_request(cls, request, app, name):
         if not Fixture.is_supported(request.mimetype):
             raise TypeError
-        fixture = cls(request.data, app.name, request.path,
-                      request.method, is_response=False, name=name)
+        fixture = cls(request.data, name, app.name, request.path,
+                      request.method, is_response=False)
         return fixture
 
     @classmethod
-    def from_response(cls, app, response, name=None):
+    def from_response(cls, response, app, name):
         if not Fixture.is_supported(response.mimetype):
             raise TypeError
-        fixture = cls(response.get_data(), app.name, request.path,
-                      request.method, name=name)
+        fixture = cls(response.get_data(), name, app.name, request.path,
+                      request.method)
         return fixture
 
     @staticmethod

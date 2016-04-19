@@ -1,31 +1,19 @@
 from flask import jsonify, Response
-from flask_autofixture import AutoFixture, autofixture, FileStorage, \
-    __ext_name__, RequestMethodLayout
 from unittest import mock
 import os
 
 
-def add_route(testapp):
-    url = '/resource'
+# ==== Callbacks ====
 
-    @testapp.route(url)
-    def get():
-        return jsonify(title="lorem ipsum",
-                       body="lorem ipsum dolor sit amet...")
-
-    return url
-
-
-def test_extract_fixtures_after_request(testapp):
+def test_execute_commands_after_request(auto_fixture, testapp):
     # Given
-    auto_fixture = AutoFixture()
-
-    with mock.patch.object(auto_fixture, '_extract_fixtures',
+    with mock.patch.object(auto_fixture, '_execute_commands',
                            autospec=True) as mock_method:
         auto_fixture.init_app(testapp)
 
         with testapp.test_request_context('/resource'):
             assert not mock_method.called
+
             # When
             resp = Response('payload')
             # For the test request context, after request hooks need
@@ -36,11 +24,9 @@ def test_extract_fixtures_after_request(testapp):
             assert mock_method.called
 
 
-def test_flush_fixtures_on_app_ctx_teardown(app):
+def test_flush_fixtures_on_app_ctx_teardown(auto_fixture, app):
     # Given
-    auto_fixture = AutoFixture()
-
-    with mock.patch.object(auto_fixture, '_flush_fixtures',
+    with mock.patch.object(auto_fixture, 'flush_fixtures',
                            autospec=True) as mock_method:
         ctx = app.app_context()
         ctx.push()
@@ -54,65 +40,125 @@ def test_flush_fixtures_on_app_ctx_teardown(app):
         assert mock_method.called
 
 
-def test_record_json_response(testapp):
+# ==== Recording ====
+
+# todo parametrize on decorator
+def test_decorator_push_cmd_on_stack(auto_fixture, testapp):
     # Given
-    auto_fixture = AutoFixture()
-    auto_fixture.init_app(testapp)
-    url = add_route(testapp)
+    auto_fixture.explicit_recording = True
+
+    @auto_fixture.name(request_name='foo', response_name='bar')
+    def dummy_test_method():
+        assert True
+
+    with mock.patch.object(auto_fixture, '_push_cmd',
+                           autospec=True) as mock_method:
+        assert not mock_method.called
+
+        # When
+        dummy_test_method()
+
+        # Then
+        assert mock_method.called
+
+
+def test_record_implicit(auto_fixture, routeapp):
+    # Given
+    auto_fixture.init_app(routeapp)
+
+    def dummy_test_method():
+        with routeapp.test_client() as client:
+            _ = client.get(routeapp.routes[0])
+            _ = client.get(routeapp.routes[1])
 
     # When
-    with testapp.test_client() as client:
-        response = client.get(url)
+    dummy_test_method()
 
     # Then
-    assert len(auto_fixture.cache) == 1
+    assert len(auto_fixture.cache) == 2
 
 
-def test_name_decorator(testapp):
+def test_record_explicit_with_decorator(auto_fixture, routeapp):
     # Given
-    auto_fixture = AutoFixture()
-    auto_fixture.init_app(testapp)
-    name = "foobar"
+    auto_fixture.explicit_recording = True
+    auto_fixture.init_app(routeapp)
+    request_name1, request_name2 = 'foo', 'foo2'
 
-    class TestCase(object):
-        def __init__(self, auto_fixture):
-            self.autofixture = auto_fixture
-
-        @autofixture(name)
-        def run_test_method(self):
-            url = add_route(testapp)
-            with testapp.test_client() as client:
-                response = client.get(url)
-            assert response is not None
+    @auto_fixture.name(request_name=request_name2, response_name='bar')
+    @auto_fixture.name(request_name=request_name1, response_name='bar')
+    def dummy_test_method():
+        with routeapp.test_client() as client:
+            _ = client.get(routeapp.routes[0])
+            _ = client.get(routeapp.routes[1])
+            # Last request shouldn't be recorded due to missing decorator
+            _ = client.get(routeapp.routes[2])
 
     # When
-    test_case = TestCase(auto_fixture)
-    test_case.run_test_method()
+    dummy_test_method()
 
     # Then
-    fixture = auto_fixture.cache[0]
-    assert name in fixture.name
+    assert len(auto_fixture.cache) == 2
+    assert auto_fixture.cache[0].name == request_name1
+    assert auto_fixture.cache[1].name == request_name2
 
 
-def cwd():
-    return os.path.dirname(os.path.realpath(__file__))
-
-
-def test_flush_entries_from_cache(testapp, fixture):
+def test_dont_record_if_explicit_and_missing_decorator(auto_fixture, routeapp):
     # Given
-    auto_fixture = AutoFixture(fixture_dirpath=cwd())
+    auto_fixture.explicit_recording = True
+    auto_fixture.init_app(routeapp)
+
+    def dummy_test_method():
+        with routeapp.test_client() as client:
+            response = client.get(routeapp.routes[0])
+
+    # When
+    dummy_test_method()
+
+    # Then
+    assert len(auto_fixture.cache) == 0
+
+
+# TODO parametrize on on invalid decorator config
+def test_implicit_recording_with_decorator_only_once(auto_fixture, routeapp):
+    # Given
+    auto_fixture.init_app(routeapp)
+
+    @auto_fixture.name(request_name='foo', response_name='bar')
+    def dummy_test_method():
+        with routeapp.test_client() as client:
+            response = client.post(routeapp.routes[3],
+                                   data='{"hello":"world"}',
+                                   content_type='application/json')
+
+    # When
+    dummy_test_method()
+
+    # Then
+    assert len(auto_fixture.cache) == 2
+
+
+def test_post_request_records_two_fixtures(auto_fixture, routeapp):
+    auto_fixture.explicit_recording = True
+    test_implicit_recording_with_decorator_only_once(auto_fixture, routeapp)
+
+
+# ==== Storage ====
+
+def test_flush_entries_from_cache(auto_fixture, testapp, fixture):
+    # Given
     auto_fixture.init_app(testapp)
     auto_fixture.cache = [fixture, fixture]
 
     # When
-    auto_fixture._flush_fixtures(object())  # call directly, not by hook
+    auto_fixture.flush_fixtures()  # call directly, not by hook
 
     # Then
     assert not len(auto_fixture.cache)
 
     # When
     file_count = 0
-    for root, dirs, files in os.walk(auto_fixture.storage.fixture_directory):
+    for root, dirs, files in os.walk(
+            auto_fixture.storage.fixture_directory):
         for file in files:
             file_count += 1
 
@@ -120,10 +166,8 @@ def test_flush_entries_from_cache(testapp, fixture):
     assert file_count == 2
 
 
-def test_reset_fixture_directory(testapp):
+def test_reset_fixture_directory(auto_fixture, testapp):
     # Given
-    auto_fixture = AutoFixture()
-
     with mock.patch('flask_autofixture.storage.shutil') as mock_shutil:
         assert not mock_shutil.rmtree.called
 

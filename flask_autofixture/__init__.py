@@ -8,59 +8,19 @@
     :license: MIT/X11, see LICENSE for more details.
 """
 import warnings
-from flask import request, current_app, has_request_context, has_app_context, g
+from flask import request, current_app, has_app_context, g
 from functools import wraps
 from .fixture import Fixture
 from .storage import FileStorage, RouteLayout, RequestMethodLayout
+from .command import CreateFixtureCommand
 
-__all__ = ('AutoFixture', 'autofixture', 'FileStorage', 'RouteLayout',
-           'RequestMethodLayout')
+__all__ = ('AutoFixture', 'FileStorage', 'RouteLayout', 'RequestMethodLayout')
 __ext_name__ = 'autofixture'
 
 
-class autofixture(object):
-    """A decorator for usage in test methods to specify a descriptive
-    name for the generated fixture.
-
-    Example usage:
-
-        @autofixture("missing_email")
-        def test_missing_email_returns_bad_request(self):
-            response = self.client.post(
-                url_for('api.new_user'),
-                data=json.dumps({'name': 'john'}))
-            self.assertTrue(response.status_code == 400)
-
-    When performing multiple request in a single test method, please
-    note that decorators need to be applied in the reverse order.
-
-    :param name: the name of the fixture to be pushed onto the stack
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    def __call__(self, func):
-        @wraps(func)
-        def _decorated(_self, *args, **kwargs):
-            stack = None
-            if not hasattr(_self, __ext_name__):
-                warnings.warn("self." + __ext_name__ + " must be available" +
-                              "on the test case")
-            else:
-                # Save name on stack
-                stack = getattr(_self, __ext_name__)
-                stack.push_name(self.name)
-            # Execute test method
-            func(_self, *args, **kwargs)
-            # Cleanup stack after test method
-            if stack:
-                stack.clear_names()
-
-        return _decorated
-
-
 class AutoFixture(object):
+    # TODO fix description
+
     """
     A wrapper around the application for which to automatically generate
     fixtures by recording the incoming requests and outgoing responses.
@@ -78,7 +38,9 @@ class AutoFixture(object):
     Alternatively, you can use :meth:`init_app` to set the Flask application
     after it has been constructed.
 
-    :param app: :class:`Flask` application under test
+    :param app: :class:`Flask` application under test to be observed
+    :param explicit_recording: whether test methods need to be annotated to
+                               record fixtures
     :param fixture_directory: the name of the fixture directory to be generated
     :param fixture_dirpath: the path of the fixture directory's parent folder
     :param storage_class: the :class:`Storage` to which the cache is flushed
@@ -86,16 +48,27 @@ class AutoFixture(object):
     """
 
     def __init__(self, app=None,
+                 explicit_recording=False,
                  fixture_dirname=__ext_name__,
                  fixture_dirpath=None,
                  storage_class=FileStorage,
                  storage_layout=RequestMethodLayout):
+
+        self.explicit_recording = explicit_recording
         self.fixture_dirname = fixture_dirname
         self.fixture_dirpath = fixture_dirpath
         self.storage_layout = storage_layout
         self.storage_class = storage_class
+
         self._app = app
-        self._name_stack = []
+
+        # Stack for request-specific commands. These are pushed at the
+        # beginning of the test and popped when executing the request hooks
+        self._request_cmd_stack = []
+
+        # Stack for test-specific commands. These are pushed at the
+        # beginning of the test and popped at the end of the test
+        self._test_cmd_stack = []
 
         if app is not None:  # pragma: no cover
             self.init_app(app)
@@ -117,11 +90,15 @@ class AutoFixture(object):
 
         if app.config['RECORD_REQUESTS_ENABLED']:
             # Register hooks
-            app.after_request(self._per_request_callback)
-            app.teardown_appcontext(self._flush_fixtures)
+            app.after_request(self._execute_commands)
+            app.teardown_appcontext(self._teardown_callback)
 
     @property
     def app(self):
+        """Convenience property to access the current application.
+
+        :return: the active :class:`Flask` application
+        """
         if self._app is not None:  # pragma: no cover
             return self._app
 
@@ -131,73 +108,227 @@ class AutoFixture(object):
     def fixture_path(self):
         """The path of the parent folder containing the fixture directory.
         By default, the fixture directory is generated in the instance folder.
-        :return:
         """
         if self.fixture_dirpath:
             return self.fixture_dirpath
         return self.app.instance_path
 
+    # ==== Caching ====
+
     @property
     def cache(self):
+        """Convenience property to an application-specific fixture cache.
+
+        :return: list of cached :class:`Fixtures`
+        """
         return self.app.extensions[__ext_name__]
 
     @cache.setter
     def cache(self, value):
+        """Setter for the application-specific fixture cache.
+
+        :param value: the new cache
+        """
         self.app.extensions[__ext_name__] = value
 
-    def push_name(self, name):
-        self._name_stack.append(name)
+    def add_fixture(self, fixture):
+        """Stores the given fixture in the application-specific fixture cache.
 
-    def pop_name(self):
-        return self._name_stack.pop()
-
-    def clear_names(self):
-        self._name_stack = []
-
-    def _per_request_callback(self, response):
-        """The after_request function of :class:`Flask` is triggered for all
-        requests. We want to hook into one specific request.
-
-        For further info:
-        http://flask.pocoo.org/snippets/53/
-
-        :param response: the :class:`Response` to generate fixtures for
-        :return:
+        :param fixture: the :class:`Fixture` to store
         """
-        if not hasattr(g, 'call_after_request'):
-            g.call_after_request = self._extract_fixtures
-            response = g.call_after_request(response)
-        return response
+        self.cache.append(fixture)
 
-    def _extract_fixtures(self, response):
-        if not has_request_context:
-            return
-        try:
-            if len(self._name_stack):
-                fixture_name = self.pop_name()
-            else:
-                fixture_name = None
-
-            # Create response fixture
-            fixture = Fixture.from_response(self.app, response,
-                                            name=fixture_name)
-            self.cache.append(fixture)
-
-            # Create request fixture if required
-            if request.data:
-                fixture = Fixture.from_request(self.app, request,
-                                               name=fixture_name)
-                self.cache.append(fixture)
-        except TypeError:  # pragma: no cover
-            warnings.warn("Could not create fixture for unsupported mime type")
-
-        return response
-
-    def _flush_fixtures(self, exception):
-        if not has_app_context:
-            return
+    def flush_fixtures(self):
+        """Flushes the application-specific fixture cache to the persistent
+        storage."""
 
         for fixture in self.cache:
             self.storage.store_fixture(fixture)
 
+        # Clear cache
         self.cache = []
+
+    # ==== Commands ====
+
+    def _push_cmd(self, cmd):
+        """Registers the given command on the request- or test-specific stack
+        based on the request's scope.
+
+        :param cmd: the :class:`Command` to register
+        """
+        if cmd.has_request_scope:
+            self._push_request_cmd(cmd)
+        else:
+            self._push_test_cmd(cmd)
+
+    def _clear_cmds(self):
+        """Clears the internal stack for all commands regardless of scope."""
+        self._clear_request_cmds()
+        self._clear_test_cmds()
+
+    def _push_request_cmd(self, cmd):
+        """Registers the given request-specific command on the internal stack.
+
+        :param cmd: the :class:`Command` to register
+        """
+        self._request_cmd_stack.append(cmd)
+
+    def _pop_request_cmd(self):
+        """Pops the last request-specific command from the internal stack.
+        :return: the :class:`Command
+        """
+        return self._request_cmd_stack.pop()
+
+    def _clear_request_cmds(self):
+        """Clears the internal stack for request-specific commands."""
+        self._request_cmd_stack = []
+
+    def _push_test_cmd(self, cmd):
+        """Registers the given test-specific command on the internal stack.
+
+        :param cmd: the :class:`Command` to register
+        """
+        self._test_cmd_stack.append(cmd)
+
+    def _clear_test_cmds(self):
+        """Clear the internal stack for test-specific commands."""
+        self._test_cmd_stack = []
+
+    def _execute_commands(self, response):
+        """Executes all commands registered on the internal stacks to e.g.
+        to generate fixtures. Request-specific commands will be executed once
+        per request, test-specific commands only once per test.
+
+        :param response: the recorded :class:`Response`
+        :return: the recorded :class:`Response`
+        """
+        from flask import request
+        print("exec", request, len(self._request_cmd_stack))
+        # Collect applicable commands
+        commands = []
+        if len(self._request_cmd_stack):
+            # Pop command scoped for the current request
+            cmd = self._pop_request_cmd()
+            commands += [cmd]
+        commands += self._test_cmd_stack
+
+        if not self.explicit_recording:
+            # Lazily add the command to generate fixtures
+            if not any(isinstance(x, CreateFixtureCommand) for x in commands):
+                print("lazy add cmd")
+                cmd = CreateFixtureCommand(request_name='request',
+                                           response_name='response')
+                self._push_cmd(cmd)
+                commands.append(cmd)
+
+        print("exec before", len(self._request_cmd_stack))
+
+        for command in commands:
+            command.execute(response, self)
+
+        print("exec after", request, len(self._request_cmd_stack))
+
+
+
+        return response
+
+    # ==== Decorators ====
+
+    def name(self, request_name=None, response_name=None):
+        """A parametrized per-request decorator for usage in test methods to
+        specify a descriptive name for the generated fixture.
+
+        Example usage:
+
+            @autofixture.name(request_name="missing_email",
+                              response_name="missing_email_response")
+            def test_missing_email_returns_bad_request(self):
+                response = self.client.post(
+                    url_for('api.new_user'),
+                    data=json.dumps({'name': 'john'}))
+                self.assertTrue(response.status_code == 400)
+
+        When performing multiple request in a single test method, please
+        note that decorators need to be applied in the reverse order.
+
+        :param request_name: the name of the request :class:`Fixture` to be
+                             generated
+        :param response_name: the name of the request :class:`Fixture` to be
+                              generated
+        :return: the decorator
+        """
+        if not request_name or not response_name:
+            warnings.warn(
+                "Please specify a name for the fixture to generate")
+            return
+
+        cmd = CreateFixtureCommand(request_name, response_name)
+
+        return self._create_command_decorator(cmd)
+
+    def _create_command_decorator(self, cmd):
+        """Factory method to create a test method decorator which manages the
+        lifecycle of the given command on the internal stack and calls the
+        appropriate hooks.
+
+        :param cmd: the :class:`Command` to manage
+        :return: the decorated test method
+        """
+
+        def decorated(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                # TODO refactor to context manager
+                self._push_cmd(cmd)
+
+                # Invoke hooks and execute test method
+                for command in self._request_cmd_stack:
+                    command.before_test(*args, **kwargs)
+
+                result = func(*args, **kwargs)
+
+                for command in self._request_cmd_stack:
+                    command.after_test(*args, **kwargs)
+
+                # Clear all commands regardless of scope
+                # This will clear any remaining request-scoped commands hence
+                self._clear_cmds()
+
+                return result
+
+            return wrapper
+
+        return decorated
+
+    # ==== Callbacks ====
+
+    # def _per_request_callback(self, response):
+    #     """The custom after_request callback of :class:`Flask` to be triggered
+    #     for every requests. The default behaviour of the after-request hook is
+    #     to be invoked for all requests. However, we want to execute
+    #     request-specific commands only once.
+    #
+    #     For further reference:
+    #     http://flask.pocoo.org/snippets/53/
+    #
+    #     :param response: the recorded :class:`Response`
+    #     :return: the recorded :class:`Response`
+    #     """
+    #     print("per request")
+    #     if not hasattr(g, 'call_after_request'):
+    #         g.call_after_request = self._execute_commands
+    #         response = g.call_after_request(response)
+    #         print("our resp", response)
+    #
+    #     return response
+
+    def _teardown_callback(self, exception):
+        """The custom callback to be called when tearing down the application
+        context.
+
+        :param exception:
+        """
+        if not has_app_context:
+            return
+
+        self.flush_fixtures()
