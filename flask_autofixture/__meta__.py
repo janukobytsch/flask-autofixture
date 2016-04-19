@@ -5,7 +5,7 @@ __title__ = 'Flask-AutoFixture'
 __summary__ = 'Flask extension for recording JSON fixtures right from your test suite'
 __url__ = 'https://github.com/janukobytsch/flask-autofixture'
 
-__version__ = '0.1.2'
+__version__ = '0.2.0'
 
 __install_requires__ = ['flask']
 __tests_require__ = []
