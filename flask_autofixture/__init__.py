@@ -15,13 +15,12 @@ from .fixture import Fixture
 from .storage import FileStorage, RouteLayout, RequestMethodLayout
 from .command import CreateFixtureCommand
 
-
 __all__ = ('AutoFixture', 'FileStorage', 'RouteLayout', 'RequestMethodLayout')
 __ext_name__ = 'autofixture'
 
-
 # prevent pyflakes from failing due to unused imports
-assert Fixture
+assert (Fixture, FileStorage, RouteLayout, RequestMethodLayout,
+        CreateFixtureCommand)
 
 
 class AutoFixture(object):
