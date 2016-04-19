@@ -60,7 +60,6 @@ def test_decorator_push_cmd_on_stack(auto_fixture, testapp, decorator_name,
 
     decorator = getattr(auto_fixture, decorator_name)
     if decorator_kwargs:
-        print(decorator)
         decorator = decorator(auto_fixture, decorator_kwargs)
 
     def dummy_test_method():
@@ -124,7 +123,7 @@ def test_record_if_explicit_and_request_decorator(auto_fixture, routeapp):
 def test_record_all__test_decorator(auto_fixture, routeapp,
                                     explicit_recording):
     # Given
-    auto_fixture.explicit_recording = True
+    auto_fixture.explicit_recording = explicit_recording
     auto_fixture.init_app(routeapp)
 
     @auto_fixture.record_all
