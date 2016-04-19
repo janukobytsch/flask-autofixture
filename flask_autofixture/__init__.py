@@ -215,7 +215,7 @@ class AutoFixture(object):
         if len(self._request_cmd_stack):
             # Pop command scoped for the current request
             cmd = self._pop_request_cmd()
-            commands += [cmd]
+            commands.append(cmd)
         commands += self._test_cmd_stack
 
         if not self.explicit_recording:
