@@ -82,7 +82,8 @@ class FileStorage(Storage):
         """The file storage object represents a strategy to persist the cached
         fixtures in a directory on the local file system.
 
-        :param layout_class: the layout strategy for the fixture directory
+        :param layout_class: the :class:`StorageLayout` for the fixture
+                             directory
         :param dirname: the name for the fixture directory
         :param root_path: the parent of the fixture directory
         """

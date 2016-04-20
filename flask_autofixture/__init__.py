@@ -36,7 +36,7 @@ class AutoFixture(object):
     in the setup method of your testing framework like this::
 
         app = create_app('testing')
-        autofixture = AutoFixture(self.app)
+        autofixture = AutoFixture(app)
 
     Alternatively, you can use :meth:`init_app` to set the Flask application
     after it has been constructed.
