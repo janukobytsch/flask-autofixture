@@ -101,10 +101,10 @@ def test_record_if_explicit_and_request_decorator(auto_fixture, routeapp):
     # Given
     auto_fixture.explicit_recording = True
     auto_fixture.init_app(routeapp)
-    request_name1, request_name2 = 'foo', 'foo2'
+    response_name1, response_name2 = 'foo', 'foo2'
 
-    @auto_fixture.record(request_name=request_name2, response_name='bar')
-    @auto_fixture.record(request_name=request_name1, response_name='bar')
+    @auto_fixture.record(request_name='foo', response_name=response_name2)
+    @auto_fixture.record(response_name=response_name1)
     def dummy_test_method():
         with routeapp.test_client() as client:
             client.get(routeapp.routes[0])
@@ -117,12 +117,12 @@ def test_record_if_explicit_and_request_decorator(auto_fixture, routeapp):
 
     # Then
     assert len(auto_fixture.cache) == 2
-    assert auto_fixture.cache[0].name == request_name1
-    assert auto_fixture.cache[1].name == request_name2
+    assert auto_fixture.cache[0].name == response_name1
+    assert auto_fixture.cache[1].name == response_name2
 
 
 @pytest.mark.parametrize("explicit_recording", [True, False])
-def test_record_all__test_decorator(auto_fixture, routeapp,
+def test_record_all_test_decorator(auto_fixture, routeapp,
                                     explicit_recording):
     # Given
     auto_fixture.explicit_recording = explicit_recording
@@ -180,6 +180,11 @@ def test_record_only_once_if_implicit_and_decorator(auto_fixture,
 
     # Then
     assert len(auto_fixture.cache) == 2
+    fixture_names = [fixture.name for fixture in auto_fixture.cache]
+    if request_name:
+        assert request_name in fixture_names
+    if response_name:
+        assert response_name in fixture_names
 
 
 @pytest.mark.parametrize("request_name, response_name",

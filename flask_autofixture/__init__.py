@@ -225,7 +225,7 @@ class AutoFixture(object):
         if not self.explicit_recording:
             # Lazily add the command to generate fixtures
             if not any(isinstance(x, CreateFixtureCommand) for x in commands):
-                cmd = CreateFixtureCommand.create_default_cmd()
+                cmd = CreateFixtureCommand()
                 self._push_cmd(cmd)
                 commands.append(cmd)
 
@@ -260,11 +260,11 @@ class AutoFixture(object):
                               generated
         :return: the decorator
         """
-        if not request_name or not response_name:
+        if not request_name and not response_name:
             warnings.warn(
                 "Please specify a name for the fixture to generate. Falling "
                 "back to default names.")
-            cmd = CreateFixtureCommand.create_default_cmd()
+            cmd = CreateFixtureCommand()
         else:
             cmd = CreateFixtureCommand(request_name, response_name)
 
@@ -289,7 +289,7 @@ class AutoFixture(object):
         """
 
         # Setup command with test scope
-        cmd = CreateFixtureCommand.create_default_cmd()
+        cmd = CreateFixtureCommand()
         cmd.request_scope = False
 
         decorator = self._create_command_decorator(cmd)

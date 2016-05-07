@@ -85,11 +85,16 @@ class CreateFixtureCommand(Command):
         if not has_request_context:
             return
 
-        try:
-            app = autofixture.app
+        app = autofixture.app
 
+        if not self.request_name:
+            self.request_name = __default_names__[0]
+        if not self.response_name:
+            self.response_name = __default_names__[1]
+
+        try:
             # Create response fixture
-            fixture = Fixture.from_response(response, app, self.request_name)
+            fixture = Fixture.from_response(response, app, self.response_name)
             autofixture.add_fixture(fixture)
 
             # Create request fixture
@@ -100,17 +105,6 @@ class CreateFixtureCommand(Command):
             warnings.warn("Could not create fixture for unsupported mime type")
 
         return response
-
-    @classmethod
-    def create_default_cmd(cls):
-        """Factory method to create the default command to generate fixtures.
-        :return: the :class:`CreateFixtureCommand`
-        """
-        cmd = cls(
-            request_name=__default_names__[0],
-            response_name=__default_names__[1]
-        )
-        return cmd
 
 
 class IgnoreFixtureCommand(object):
