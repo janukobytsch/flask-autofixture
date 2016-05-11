@@ -2,7 +2,7 @@
 Flask-AutoFixture
 *****************
 
-|version| |license|
+|version| |license| |travis|
 
 Flask-AutoFixture is an extension that automatically records JSON fixtures right from the test suite by hooking into the request callbacks of your Flask application.
 
@@ -139,3 +139,6 @@ Roadmap
 
 .. |license| image:: http://img.shields.io/pypi/l/flask-autofixture.svg?style=flat
     :target: https://pypi.python.org/pypi/Flask-AutoFixture/
+
+.. |travis| image:: https://api.travis-ci.org/janukobytsch/flask-autofixture.svg?branch=master
+    :target: https://travis-ci.org/janukobytsch/flask-autofixture
