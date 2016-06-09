@@ -123,7 +123,7 @@ def test_record_if_explicit_and_request_decorator(auto_fixture, routeapp):
 
 @pytest.mark.parametrize("explicit_recording", [True, False])
 def test_record_all_test_decorator(auto_fixture, routeapp,
-                                    explicit_recording):
+                                   explicit_recording):
     # Given
     auto_fixture.explicit_recording = explicit_recording
     auto_fixture.init_app(routeapp)
@@ -197,6 +197,23 @@ def test_post_request_records_two_fixtures(auto_fixture, routeapp,
                                                     routeapp,
                                                     request_name,
                                                     response_name)
+
+
+def test_extract_fixture_names_from_test_method(auto_fixture, routeapp):
+    # Given
+    auto_fixture.use_method_names = True
+    auto_fixture.init_app(routeapp)
+
+    @auto_fixture.record_all
+    def dummy_test_method():
+        with routeapp.test_client() as client:
+            client.get(routeapp.routes[0])
+
+    # When
+    dummy_test_method()
+
+    # Then
+    assert auto_fixture.cache[0].name == dummy_test_method.__name__
 
 
 # ==== Storage ====
