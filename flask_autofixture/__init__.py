@@ -41,23 +41,31 @@ class AutoFixture(object):
     Alternatively, you can use :meth:`init_app` to set the Flask application
     after it has been constructed.
 
-    :param app: :class:`Flask` application under test to be observed
-    :param explicit_recording: whether test methods need to be annotated to
-                               record fixtures
-    :param fixture_directory: the name of the fixture directory to be generated
-    :param fixture_dirpath: the path of the fixture directory's parent folder
-    :param storage_class: the :class:`Storage` to which the cache is flushed
-    :param storage_layout: the :class:`StorageLayout` for the fixture directory
+    :param app: :class:`Flask`  application under test to be observed
+    :param explicit_recording:  whether test methods need to be annotated to
+                                record fixtures
+    :param use_method_names:    whether the test methods should be used as the
+                                default names for fixtures
+    :param fixture_directory:   the name of the fixtures directory to be
+                                generated
+    :param fixture_dirpath:     the path of the fixture directory's parent
+                                folder
+    :param storage_class:       the :class:`Storage` to which the cache is
+                                flushed
+    :param storage_layout:      the :class:`StorageLayout` for the fixture
+                                directory
     """
 
     def __init__(self, app=None,
                  explicit_recording=False,
+                 use_method_names=False,
                  fixture_dirname=__ext_name__,
                  fixture_dirpath=None,
                  storage_class=FileStorage,
                  storage_layout=RequestMethodLayout):
 
         self.explicit_recording = explicit_recording
+        self.use_method_names = use_method_names
         self.fixture_dirname = fixture_dirname
         self.fixture_dirpath = fixture_dirpath
         self.storage_layout = storage_layout
@@ -161,6 +169,13 @@ class AutoFixture(object):
 
     # ==== Commands ====
 
+    @property
+    def commands(self):
+        """All commands registered for this instance.
+        :return: the registered :class:`Command`s
+        """
+        return self._request_cmd_stack + self._test_cmd_stack
+
     def _push_cmd(self, cmd):
         """Registers the given command on the request- or test-specific stack
         based on the request's scope.
@@ -225,12 +240,12 @@ class AutoFixture(object):
         if not self.explicit_recording:
             # Lazily add the command to generate fixtures
             if not any(isinstance(x, CreateFixtureCommand) for x in commands):
-                cmd = CreateFixtureCommand()
+                cmd = CreateFixtureCommand(self)
                 self._push_cmd(cmd)
                 commands.append(cmd)
 
         for command in commands:
-            command.execute(response, self)
+            command.execute(response)
 
         return response
 
@@ -260,13 +275,7 @@ class AutoFixture(object):
                               generated
         :return: the decorator
         """
-        if not request_name and not response_name:
-            warnings.warn(
-                "Please specify a name for the fixture to generate. Falling "
-                "back to default names.")
-            cmd = CreateFixtureCommand()
-        else:
-            cmd = CreateFixtureCommand(request_name, response_name)
+        cmd = CreateFixtureCommand(self, request_name, response_name)
 
         return self._create_command_decorator(cmd)
 
@@ -289,7 +298,7 @@ class AutoFixture(object):
         """
 
         # Setup command with test scope
-        cmd = CreateFixtureCommand()
+        cmd = CreateFixtureCommand(self)
         cmd.request_scope = False
 
         decorator = self._create_command_decorator(cmd)
@@ -306,7 +315,7 @@ class AutoFixture(object):
         """
 
         @contextmanager
-        def command_context(cmd, *args, **kwargs):
+        def command_context(cmd, func, *args, **kwargs):
             """A context manager to wrap test methods.
 
             :param cmd: the :class:`Command` to be registered
@@ -315,20 +324,20 @@ class AutoFixture(object):
             """
             self._push_cmd(cmd)
             # Invoke hooks and execute test method
-            for command in self._request_cmd_stack:
-                command.before_test(*args, **kwargs)
+            for command in self.commands:
+                command.before_test(func, *args, **kwargs)
             yield  # to the test method
-            for command in self._request_cmd_stack:
-                command.after_test(*args, **kwargs)
+            for command in self.commands:
+                command.after_test(func, *args, **kwargs)
             # Clear all commands regardless of scope
-            # This will clear any remaining request-scoped commands hence
+            # This will clear any remaining request-scoped commands
             self._clear_cmds()
 
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
                 # Execute test method with command context
-                with command_context(cmd, *args, **kwargs):
+                with command_context(cmd, func, *args, **kwargs):
                     result = func(*args, **kwargs)
                 return result
 
