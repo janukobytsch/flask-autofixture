@@ -1,4 +1,4 @@
-coverage==4.5
+coverage==4.5.1
 Flask==0.12
 itsdangerous==0.24
 Jinja2==2.9
