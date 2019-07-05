@@ -1,5 +1,5 @@
 coverage==4.3.4
-Flask==1.0
+Flask==1.1
 itsdangerous==0.24
 Jinja2==2.9
 MarkupSafe==0.23
